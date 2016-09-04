@@ -2,49 +2,49 @@
 ;;; Commentary:
 ;;
 ;; Things to do:
+;;  - reorganize configs
 ;;  - highlight column 80
 ;;  - look into yasnippets
 ;;  - HTML utilities
 ;;  - mark whitespace
 ;;
-;; Type     | # | Packages
-;; ---------+---+------------------------------
-;; Plugins  | 2 | package, use-package
-;; Theming  | 1 | badwolf-theme
-;; KeyBinds | 3 | evil, evil-leader, evil-tutor
-;; UI       | 2 | helm, neotree
-;; Misc     | 2 | virtualenv, flycheck
-;; ---------+---+------------------------------
-;; Total    | 10
 
 ;;; Code:
-;;
-;; ==== Plugins ====
-(require 'package)
-(package-initialize)
-(add-to-list 'package-archives
-	     '("melpa" . "http://melpa.milkbox.net/packages/") 1)
-(add-to-list 'package-archives
-	     '("org" . "http://orgmode.org/elpa/") 1)
-
-(require 'use-package)
-
 ;; The following is neccesary if your ISP redirects unknown hosts.
 ;; If not present, Emacs start-up time is extended by several minutes.
 (setq tramp-ssh-controlmaster-options
       "-o ControlMaster=auto -o ControlPath='tramp.%%C' -o ControlPersist=no")
 
+;; ==== Init / Bootstrap ====
+(setq mandatory-packages '(package use-package))  ;; We need use-package to bootstrap emacs on first run
+
+;; Set repositories
+(require 'package)
+(setq package-archives '(("gnu" . "http://elpa.gnu.org/packages/")
+                         ("melpa" . "http://melpa.milkbox.net/packages/")
+                         ("org" . "http://orgmode.org/elpa/")))
+(package-initialize)                  ;; Activate all packages
+
+(unless package-archive-contents      ;; Fetch list of available packages
+  (package-refresh-contents))
+
+(dolist (package mandatory-packages)  ;; Install the missing packages
+  (unless (package-installed-p package)
+    (package-install package)))
+
+(require 'use-package)
+
 ;; ==== Theming ====
-;; Add our local theme directory.
-(add-to-list 'custom-theme-load-path "~/.emacs.d/user/themes")
 
 (use-package molokai-theme
   :ensure t
   :config
   (load-theme 'molokai t)
-  (load-theme 'molokai-overrides t))  ;; Locally sourced.
+  (add-to-list 'custom-theme-load-path "~/.emacs.d/user/themes")
+  (load-theme 'molokai-overrides t))  ;; Locally sourced.)
 
-;; ==== Keys Bindings ====
+;;
+;;;; ==== Keys Bindings ====
 (use-package evil-leader  ;; Speak in tongues
   :ensure t
   :config
@@ -72,7 +72,7 @@
 
 ;; ==== UI ====
 (when (window-system)     ;; Execute the following only when running the GUI.
-  (set-frame-font "Iosevka-12:weight=regular")
+  (set-frame-font "Iosevka-11")
   (menu-bar-mode -1)      ;; Don't show the menubar.
   (tool-bar-mode -1)      ;; Don't show the toolbar.
   (scroll-bar-mode -1)    ;; Don't show the scrollbar.
@@ -88,22 +88,24 @@
   (setq helm-autoresize-mode t)  ;; Resize completion window based on the number of candidates.
   )
 
+
 (use-package neotree
   :ensure t
   :config
   (setq neo-smart-open t)  ;; Jump to the file's node when opening neotree
                            ;; TODO Replace when using projectile
   (add-hook 'neotree-mode-hook
-	    (lambda()  ;; set keymaps inside the neotree split
-	      (define-key evil-normal-state-local-map (kbd "TAB") 'neotree-enter)
-	      (define-key evil-normal-state-local-map (kbd "SPC") 'neotree-enter)
-	      (define-key evil-normal-state-local-map (kbd "RET") 'neotree-enter)
-	      (define-key evil-normal-state-local-map (kbd "i") 'neotree-enter-horizontal-split)
-	      (define-key evil-normal-state-local-map (kbd "s") 'neotree-enter-vertical-split)
-	      (define-key evil-normal-state-local-map (kbd "n") 'neotree-create-node)
-	      (define-key evil-normal-state-local-map (kbd "d") 'neotree-delete-node)
-	      (define-key evil-normal-state-local-map (kbd "r") 'neotree-rename-node)
-	      (define-key evil-normal-state-local-map (kbd "c") 'neotree-change-root)))
+            (lambda ()
+              (define-key evil-normal-state-local-map (kbd "TAB") 'neotree-enter)
+              (define-key evil-normal-state-local-map (kbd "SPC") 'neotree-enter)
+              (define-key evil-normal-state-local-map (kbd "RET") 'neotree-enter)
+              (define-key evil-normal-state-local-map (kbd "i") 'neotree-enter-horizontal-split)
+              (define-key evil-normal-state-local-map (kbd "s") 'neotree-enter-vertical-split)
+              (define-key evil-normal-state-local-map (kbd "n") 'neotree-create-node)
+              (define-key evil-normal-state-local-map (kbd "d") 'neotree-delete-node)
+              (define-key evil-normal-state-local-map (kbd "r") 'neotree-rename-node)
+              (define-key evil-normal-state-local-map (kbd "c") 'neotree-change-root)
+              (define-key evil-normal-state-local-map (kbd "R") 'neotree-refresh)))
   ;; set files to be hidden from the tree view
   ;; TODO toggle files to be shown/hidden
   (setq neo-hidden-regexp-list '("^.git$"         ;; Git folder
@@ -140,6 +142,11 @@
 (setq whitespace-style (quote (spaces tabs newline
 			       space-mark tab-mark newline-mark)))
 
+(add-hook 'prog-mode-hook
+          (lambda()
+            (push '("lambda" . "λ") prettify-symbols-alist)
+            ))
+
 ;; ==== Virtualenv ====
 (use-package virtualenvwrapper
   :ensure t
@@ -149,26 +156,39 @@
   (setq venv-location "~/Programming/virtualenvs/"))
 
 ;; ==== Syntax checks ====
-;; Python syntax checking is provided by /usr/bin/flake8 (Python3 only).
-;; JavaScript syntax checking is provided by JShint.
+;; Python syntax checking is provided by /usr/bin/flake8 (Python3 only)
+;; Make sure the checkers are the latest versions
 (use-package flycheck
   :ensure t
-  :config
-  (global-flycheck-mode))
+  :config)
 
 ;; ==== Code Completion ====
 (use-package company
   :ensure t
   :config
   (add-hook 'prog-mode-hook 'company-mode)
-  (setq company-idle-delay 0))
+  (setq company-tooltip-align-annotations t)
+  (setq company-idle-delay 0)
+  (setq company-dabbrev-downcase nil))        ;; Makes the abbrev backend case sensitive
 
+;; Python code completion via Jedi Server
 (use-package company-jedi
   :ensure t
   :config
   (defun my/python-mode-hook ()
-    (add-to-list 'company-backends 'company-jedi))
+    (add-to-list 'company-backends 'company-jedi)
+    (flycheck-mode t))
   (add-hook 'python-mode-hook 'my/python-mode-hook))
+
+(use-package tide
+  :ensure t
+  :config
+  (defun setup-tide-mode()
+    (interactive)
+    (tide-setup)
+    (flycheck-mode t)
+    (eldoc-mode t))
+  (add-hook 'typescript-mode-hook 'setup-tide-mode))
 
 (provide 'init)
 ;;; init.el ends here
